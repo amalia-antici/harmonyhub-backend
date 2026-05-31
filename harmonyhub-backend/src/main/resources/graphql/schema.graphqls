@@ -1,0 +1,81 @@
+type User {
+    id: ID!
+    username: String
+    email: String
+    firstName: String
+    lastName: String
+}
+
+type MusicEvent {
+    Id: ID!
+    Title: String
+    Location: String
+    City: String
+    Country: String
+    EventType: String
+    Genre: String
+    Capacity: Int
+    ReservedSpots: Int
+    Description: String
+    DateTime: String
+    PhotoUrl: String
+    FormLink: String
+    Tags: [EventTag]
+    createdBy: User
+}
+
+type EventTag {
+    Id: ID!
+    Name: String
+}
+
+type Query {
+    allEvents: [MusicEvent]
+    eventById(id: ID!): MusicEvent
+    searchEventsByTitle(title: String!): [MusicEvent]
+    allLogs: [AuditLog]
+    observationList: [SuspiciousUser]
+}
+
+input TagInput {
+    Name: String!
+}
+
+input EventInput {
+    Title: String
+    Location: String
+    City: String
+    Country: String
+    EventType: String
+    Genre: String
+    Capacity: Int
+    Description: String
+    DateTime: String
+    PhotoUrl: String
+    FormLink: String
+    Tags: [TagInput]
+}
+
+type AuditLog {
+    id: ID!
+    userId: String
+    userRole: String
+    action: String
+    timestamp: String
+}
+
+type SuspiciousUser {
+    id: ID!
+    userId: String
+    reason: String
+    severity: String
+    timestamp: String
+}
+
+type Mutation {
+    # Add userId: ID here to match your Java @Argument
+    createEvent(input: EventInput!, userId: ID): MusicEvent
+    deleteEvent(id: ID!, currentUserId: ID!): Boolean
+    updateEvent(id: ID!, input: EventInput!, currentUserId: ID!): MusicEvent
+    #updateEvent(id: ID!, input: EventInput!): MusicEvent
+}
