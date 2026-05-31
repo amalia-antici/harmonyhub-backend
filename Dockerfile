@@ -1,9 +1,10 @@
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
-COPY .mvn/ .mvn
-COPY mvnw pom.xml ./
+COPY harmonyhub-backend/.mvn/ .mvn
+COPY harmonyhub-backend/mvnw harmonyhub-backend/pom.xml ./
+RUN chmod +x ./mvnw
 RUN ./mvnw dependency:go-offline
-COPY src ./src
+COPY harmonyhub-backend/src ./src
 RUN ./mvnw clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
