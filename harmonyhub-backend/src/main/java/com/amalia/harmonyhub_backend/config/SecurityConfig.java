@@ -77,6 +77,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(Arrays.asList(
+                "https://harmonyhub-frontend.netlify.app/"
                 "https://localhost:5173",
                 "https://10.212.192.97:5173",
                 "http://10.212.192.97:5173",
