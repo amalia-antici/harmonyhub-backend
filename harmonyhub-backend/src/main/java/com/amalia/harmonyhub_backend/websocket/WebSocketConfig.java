@@ -18,6 +18,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry){
         registry.addEndpoint("/ws-events")
                 .setAllowedOriginPatterns(
+                        "https://harmonyhub-frontend.netlify.app",
                         "https://localhost:5173",
                         "https://127.0.0.1:5173",
                         "https://10.212.192.97:5173"
