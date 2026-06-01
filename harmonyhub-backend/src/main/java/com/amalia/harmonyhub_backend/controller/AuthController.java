@@ -83,6 +83,8 @@ public class AuthController {
         userRepository.save(user);
 
         emailService.sendOtpEmail(user.getEmail(), emailOtp);
+        // In authenticateUser method, after saving the OTP:
+        System.out.println(">>> DEMO OTP for " + user.getUsername() + ": " + emailOtp);
 
         String preAuthToken = jwtUtils.generatePartialToken(user.getUsername(), "AWAITING_MFA");
         return ResponseEntity.ok(Map.of(
