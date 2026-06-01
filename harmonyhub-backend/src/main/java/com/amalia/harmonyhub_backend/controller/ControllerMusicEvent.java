@@ -41,6 +41,8 @@ public class ControllerMusicEvent {
     @Autowired
     private AiMonitorService aiMonitorService;
 
+    @Autowired private CloudinaryService cloudinaryService;
+
 
     public ControllerMusicEvent(ServiceMusicEvents service,
                                 UserRepository userRepository,
@@ -62,6 +64,22 @@ public class ControllerMusicEvent {
         return ResponseEntity.ok(service.getPaginatedEvents(page, size));
     }
 
+//    @PostMapping
+//    public ResponseEntity<?> createEvent(@Valid @RequestBody MusicEvent event) {
+//        User creator = getCurrentAuthenticatedUser();
+//        if (creator == null) {
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Sign in first!");
+//        }
+//
+//        event.setCreatedBy(creator);
+//
+//        MusicEvent savedEvent = service.addEvent(event);
+//
+//        loggingService.record(creator, "CREATED EVENT: " + savedEvent.getTitle());
+//
+//        return new ResponseEntity<>(savedEvent, HttpStatus.CREATED);
+//    }
+
     @PostMapping
     public ResponseEntity<?> createEvent(@Valid @RequestBody MusicEvent event) {
         User creator = getCurrentAuthenticatedUser();
@@ -69,12 +87,17 @@ public class ControllerMusicEvent {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Sign in first!");
         }
 
+        // Upload photo to Cloudinary if it's a base64 image
+        if (event.getPhotoUrl() != null && event.getPhotoUrl().startsWith("data:image")) {
+            String cloudUrl = cloudinaryService.uploadBase64Image(event.getPhotoUrl());
+            if (cloudUrl != null) {
+                event.setPhotoUrl(cloudUrl);
+            }
+        }
+
         event.setCreatedBy(creator);
-
         MusicEvent savedEvent = service.addEvent(event);
-
         loggingService.record(creator, "CREATED EVENT: " + savedEvent.getTitle());
-
         return new ResponseEntity<>(savedEvent, HttpStatus.CREATED);
     }
 
