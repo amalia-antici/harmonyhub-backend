@@ -2,22 +2,23 @@ package com.amalia.harmonyhub_backend.controller;
 
 import com.amalia.harmonyhub_backend.config.JwtUtils;
 import com.amalia.harmonyhub_backend.dtos.LoginRequest;
+import com.amalia.harmonyhub_backend.dtos.ProfileUpdateRequest;
 import com.amalia.harmonyhub_backend.model.User;
 import com.amalia.harmonyhub_backend.model.Role;
 import com.amalia.harmonyhub_backend.repository.UserRepository;
 import com.amalia.harmonyhub_backend.repository.RoleRepository;
+import com.amalia.harmonyhub_backend.services.CloudinaryService;
 import com.amalia.harmonyhub_backend.services.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 
 @RestController
@@ -30,6 +31,9 @@ public class AuthController {
     @Autowired private JwtUtils jwtUtils;
 
     @Autowired private EmailService emailService;
+
+    @Autowired
+    private CloudinaryService cloudinaryService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User newUser) {
@@ -48,6 +52,15 @@ public class AuthController {
         } else {
             return ResponseEntity.badRequest().body("A security answer is mandatory for registration");
         }
+
+        // Upload profile photo to Cloudinary if provided
+        if (newUser.getPhoto() != null && newUser.getPhoto().startsWith("data:image")) {
+            String cloudUrl = cloudinaryService.uploadBase64Image(newUser.getPhoto());
+            if (cloudUrl != null) {
+                newUser.setPhoto(cloudUrl);
+            }
+        }
+
         userRepository.save(newUser);
         return ResponseEntity.ok("User registered successfully");
     }
@@ -61,12 +74,7 @@ public class AuthController {
 
         if (user != null && passwordEncoder.matches(password, user.getPassword())) {
             String token=jwtUtils.generateToken(user.getUsername());
-            return ResponseEntity.ok(Map.of(
-                    "token", token,
-                    "username", user.getUsername(),
-                    "roles", user.getRoles().stream().map(Role::getName).toList(),
-                    "id", user.getId()
-            ));
+            return ResponseEntity.ok(buildUserResponse(user, token));
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
     }
@@ -78,18 +86,11 @@ public class AuthController {
             return ResponseEntity.status(401).body("Invalid credentials");
         }
 
-        String emailOtp = String.format("%06d", new Random().nextInt(999999));
-        user.setEmailOtpCode(emailOtp);
-        userRepository.save(user);
-
-        emailService.sendOtpEmail(user.getEmail(), emailOtp);
-        // In authenticateUser method, after saving the OTP:
-        System.out.println(">>> DEMO OTP for " + user.getUsername() + ": " + emailOtp);
-
-        String preAuthToken = jwtUtils.generatePartialToken(user.getUsername(), "AWAITING_MFA");
+        String partialToken = jwtUtils.generatePartialToken(user.getUsername(), "AWAITING_QA");
         return ResponseEntity.ok(Map.of(
-                "token", preAuthToken,
-                "nextStep", "MFA_CODE_PROMPT"
+                "token", partialToken,
+                "nextStep", "SECURITY_QUESTION_PROMPT",
+                "question", user.getSecurityQuestion()
         ));
     }
 
@@ -146,12 +147,7 @@ public class AuthController {
         }
 
         String finalToken = jwtUtils.generateToken(username);
-        return ResponseEntity.ok(Map.of(
-                "token", finalToken,
-                "username", user.getUsername(),
-                "roles", user.getRoles().stream().map(Role::getName).toList(),
-                "id", user.getId()
-        ));
+        return ResponseEntity.ok(buildUserResponse(user, finalToken));
     }
 
     @PostMapping("/forgot-password")
@@ -197,5 +193,66 @@ public class AuthController {
         return ResponseEntity.ok("Password reset successfully.");
     }
 
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@RequestBody ProfileUpdateRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = authentication.getName();
+
+        User user = userRepository.findByUsername(currentUsername);
+        if (user == null) {
+            return ResponseEntity.status(404).body("Error: Current session account user record not found.");
+        }
+
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setEmail(request.getEmail());
+        user.setUsername(request.getUsername());
+        user.setCountry(request.getCountry());
+        user.setCity(request.getCity());
+        user.setOccupation(request.getOccupation());
+        user.setInstagram(request.getInstagram());
+        user.setSkills(request.getSkills());
+        user.setBio(request.getBio());
+
+        // Upload to Cloudinary if it's a new base64 image, otherwise keep existing URL
+        if (request.getPhoto() != null && request.getPhoto().startsWith("data:image")) {
+            String cloudUrl = cloudinaryService.uploadBase64Image(request.getPhoto());
+            user.setPhoto(cloudUrl != null ? cloudUrl : user.getPhoto());
+        } else if (request.getPhoto() != null && !request.getPhoto().isBlank()) {
+            user.setPhoto(request.getPhoto()); // already a Cloudinary URL, keep it
+        }
+        // if photo is null/blank, leave the existing photo untouched
+
+        User savedUser = userRepository.save(user);
+        return ResponseEntity.ok(savedUser);
+    }
+
+    // Helper to avoid repeating this pattern everywhere
+    private Map<String, Object> buildUserResponse(User user, String token) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("username", user.getUsername());
+        response.put("roles", user.getRoles().stream().map(Role::getName).toList());
+        response.put("id", user.getId());
+        response.put("firstName", user.getFirstName() != null ? user.getFirstName() : "");
+        response.put("lastName", user.getLastName() != null ? user.getLastName() : "");
+        response.put("email", user.getEmail() != null ? user.getEmail() : "");
+        response.put("country", user.getCountry() != null ? user.getCountry() : "");
+        response.put("city", user.getCity() != null ? user.getCity() : "");
+        response.put("occupation", user.getOccupation() != null ? user.getOccupation() : "");
+        response.put("instagram", user.getInstagram() != null ? user.getInstagram() : "");
+        response.put("skills", user.getSkills() != null ? user.getSkills() : "");
+        response.put("bio", user.getBio() != null ? user.getBio() : "");
+        response.put("photo", user.getPhoto() != null ? user.getPhoto() : "");
+        return response;
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = userRepository.findByUsername(authentication.getName());
+        if (user == null) return ResponseEntity.status(404).body("User not found");
+        return ResponseEntity.ok(user);
+    }
 
 }

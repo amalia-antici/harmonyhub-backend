@@ -4,6 +4,8 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -36,6 +38,27 @@ public class CloudinaryService {
             return (String) result.get("secure_url");
         } catch (Exception e) {
             System.err.println("Cloudinary upload failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    public String uploadAudio(String base64Audio) {
+        try {
+            String audioData = base64Audio;
+            if (base64Audio.contains(",")) {
+                audioData = base64Audio.split(",")[1];
+            }
+
+            Map result = cloudinary.uploader().upload(
+                    "data:audio/webm;base64," + audioData,
+                    ObjectUtils.asMap(
+                            "resource_type", "video",
+                            "folder", "voice_posts"
+                    )
+            );
+            return (String) result.get("secure_url");
+        } catch (Exception e) {
+            System.err.println("Cloudinary audio upload failed: " + e.getMessage());
             return null;
         }
     }

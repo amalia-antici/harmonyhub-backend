@@ -3,10 +3,8 @@ package com.amalia.harmonyhub_backend.services;
 import com.amalia.harmonyhub_backend.model.EventTag;
 import com.amalia.harmonyhub_backend.model.MusicEvent;
 import com.amalia.harmonyhub_backend.repository.MusicEventRepository;
-import com.amalia.harmonyhub_backend.repository.RepositoryMusicEvent;
 import com.amalia.harmonyhub_backend.repository.TagRepository;
 import jakarta.transaction.Transactional;
-import net.datafaker.providers.base.Music;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -165,4 +163,32 @@ public class ServiceMusicEvents {
 
     @CacheEvict(value = "heavyTagStats", allEntries = true)
     public void evictHeavyStatsCache() {}
+
+    public List<MusicEvent> searchEvents(int page, int size, String genre, String city, String date) {
+        return repository.searchEvents(genre, city, date, PageRequest.of(page, size));
+    }
+
+    @Transactional
+    public MusicEvent toggleAttendance(Long eventId, boolean isAttending) {
+        MusicEvent event = repository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found with id: " + eventId));
+
+        int currentReserved = event.getReservedSpots() != null ? event.getReservedSpots() : 0;
+        int capacity = event.getCapacity() != null ? event.getCapacity() : Integer.MAX_VALUE;
+
+        if (isAttending) {
+            if (currentReserved > 0) {
+                event.setReservedSpots(currentReserved - 1);
+            }
+        } else {
+            if (currentReserved >= capacity) {
+                throw new IllegalStateException("Cannot attend: This event is already full!");
+            }
+            event.setReservedSpots(currentReserved + 1);
+        }
+
+        MusicEvent savedEvent = repository.save(event);
+        broadcastUpdate();
+        return savedEvent;
+    }
 }

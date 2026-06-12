@@ -47,19 +47,33 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/events/stats/heavy/evict").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/events/observations/ai-analysis").hasAuthority("ROLE_ADMIN")
+
                         // Admin-only GET endpoints BEFORE the general GET wildcard
                         .requestMatchers(HttpMethod.GET, "/api/events/logs").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/events/observations").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/challenges").hasAuthority("ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/challenges/**").hasAuthority("ROLE_ADMIN")
 
-                        // Public GET endpoints
+                        .requestMatchers(HttpMethod.GET, "/api/events/search").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/stats/heavy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/generator-status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/voice-posts/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/challenges/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/quiz/questions").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/quiz/leaderboard").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/quiz/submit").permitAll()
+
 
                         // Authenticated modifications
                         .requestMatchers(HttpMethod.POST, "/api/events/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/events/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/events/**").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/events/**").authenticated()  // ← move here
+                        .requestMatchers(HttpMethod.POST, "/api/voice-posts/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/challenges/*/submit").authenticated()
+                        .requestMatchers("/api/friends/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/quiz/history").authenticated()
 
                         .anyRequest().authenticated()
                 )
@@ -77,15 +91,15 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(Arrays.asList(
-                "https://harmonyhub-frontend.netlify.app/",
+                "https://harmonyhub-frontend.netlify.app",
                 "https://localhost:5173",
-                "https://10.212.192.97:5173",
-                "http://10.212.192.97:5173",
                 "http://localhost:8080",
-                "http://localhost:5173"
+                "http://localhost:5173",
+                "https://localhost:8080"
+
         ));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

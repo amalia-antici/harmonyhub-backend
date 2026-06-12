@@ -49,6 +49,9 @@ public class User {
     //@JsonIgnore
     private Collection<Role> roles;
 
+    @Column(name="photo", length=500)
+    private String photo;
+
 
     public Long getId() {
         return id;
@@ -210,4 +213,8 @@ public class User {
     public void setPasswordResetTokenExpiry(LocalDateTime passwordResetTokenExpiry) {
         this.passwordResetTokenExpiry = passwordResetTokenExpiry;
     }
+
+    public String getPhoto() { return photo; }
+
+    public void setPhoto(String photo) { this.photo = photo; }
 }

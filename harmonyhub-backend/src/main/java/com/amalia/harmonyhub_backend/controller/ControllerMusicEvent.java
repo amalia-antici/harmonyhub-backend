@@ -64,22 +64,6 @@ public class ControllerMusicEvent {
         return ResponseEntity.ok(service.getPaginatedEvents(page, size));
     }
 
-//    @PostMapping
-//    public ResponseEntity<?> createEvent(@Valid @RequestBody MusicEvent event) {
-//        User creator = getCurrentAuthenticatedUser();
-//        if (creator == null) {
-//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Sign in first!");
-//        }
-//
-//        event.setCreatedBy(creator);
-//
-//        MusicEvent savedEvent = service.addEvent(event);
-//
-//        loggingService.record(creator, "CREATED EVENT: " + savedEvent.getTitle());
-//
-//        return new ResponseEntity<>(savedEvent, HttpStatus.CREATED);
-//    }
-
     @PostMapping
     public ResponseEntity<?> createEvent(@Valid @RequestBody MusicEvent event) {
         User creator = getCurrentAuthenticatedUser();
@@ -87,7 +71,6 @@ public class ControllerMusicEvent {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Sign in first!");
         }
 
-        // Upload photo to Cloudinary if it's a base64 image
         if (event.getPhotoUrl() != null && event.getPhotoUrl().startsWith("data:image")) {
             String cloudUrl = cloudinaryService.uploadBase64Image(event.getPhotoUrl());
             if (cloudUrl != null) {
@@ -121,6 +104,13 @@ public class ControllerMusicEvent {
 
         if (!isAdmin && !isOwner) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You do not have permission to edit this event.");
+        }
+
+        if (event.getPhotoUrl() != null && event.getPhotoUrl().startsWith("data:image")) {
+            String cloudUrl = cloudinaryService.uploadBase64Image(event.getPhotoUrl());
+            if (cloudUrl != null) {
+                event.setPhotoUrl(cloudUrl);
+            }
         }
 
         event.setCreatedBy(existingEvent.getCreatedBy());
@@ -273,6 +263,34 @@ public class ControllerMusicEvent {
                 "analysis", analysis,
                 "totalFlags", observations.size()
         ));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<MusicEvent>> searchEvents(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String date) {
+        return ResponseEntity.ok(service.searchEvents(page, size, genre, city, date));
+    }
+
+    @PatchMapping("/{id}/attend")
+    public ResponseEntity<?> toggleEventAttendance(@PathVariable Long id, @RequestParam boolean isAttending) {
+        User currentUser = getCurrentAuthenticatedUser();
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized: Sign in first!");
+        }
+
+        try {
+            MusicEvent updatedEvent = service.toggleAttendance(id, isAttending);
+            loggingService.record(currentUser, (isAttending ? "UNATTENDED" : "ATTENDED") + " EVENT: " + updatedEvent.getTitle());
+            return ResponseEntity.ok(updatedEvent);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
 

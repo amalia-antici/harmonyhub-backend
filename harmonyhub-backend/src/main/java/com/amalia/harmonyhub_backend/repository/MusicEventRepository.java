@@ -41,4 +41,18 @@ public interface MusicEventRepository extends JpaRepository<MusicEvent, Long> {
     ORDER BY eventCount DESC
     """, nativeQuery = true)
     List<Map<String, Object>> getHeavyTagStats();
+
+    @Query(value = """
+    SELECT * FROM music_events e
+    WHERE (:genre IS NULL OR :genre = 'ALL' OR e.genre = :genre)
+    AND (:city IS NULL OR :city = '' OR LOWER(e.city) LIKE LOWER(CONCAT('%', :city, '%')))
+    AND (:date IS NULL OR :date = '' OR CAST(e.date_time AS DATE) = CAST(:date AS DATE))
+    ORDER BY e.date_time ASC
+    OFFSET :#{#pageable.offset} ROWS FETCH FIRST :#{#pageable.pageSize} ROWS ONLY
+    """, nativeQuery = true)
+    List<MusicEvent> searchEvents(
+            @Param("genre") String genre,
+            @Param("city") String city,
+            @Param("date") String date,
+            Pageable pageable);
 }
