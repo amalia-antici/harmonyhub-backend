@@ -1,25 +1,23 @@
 package com.amalia.harmonyhub_backend.services;
 
+import com.amalia.harmonyhub_backend.dtos.QuizResult;
 import com.amalia.harmonyhub_backend.model.QuizQuestion;
 import com.amalia.harmonyhub_backend.model.QuizScore;
 import com.amalia.harmonyhub_backend.model.User;
 import com.amalia.harmonyhub_backend.repository.QuizQuestionRepository;
 import com.amalia.harmonyhub_backend.repository.QuizScoreRepository;
 import com.amalia.harmonyhub_backend.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class QuizService {
 
     @Autowired private QuizQuestionRepository questionRepository;
-    @Autowired
-    private QuizScoreRepository scoreRepository;
+    @Autowired private QuizScoreRepository scoreRepository;
     @Autowired private UserRepository userRepository;
 
     private static final int QUESTIONS_PER_GAME = 10;
@@ -32,51 +30,73 @@ public class QuizService {
                     dto.put("id", q.getId());
                     dto.put("text", q.getText());
                     dto.put("hint", q.getHint());
-                    // NOTE: correctAnswer is NOT sent to frontend
                     return dto;
                 })
                 .toList();
     }
 
-    public Map<String, Object> submitAnswers(String username, Map<Long, String> answers) {
-        List<QuizQuestion> questions = questionRepository.findAllById(answers.keySet());
+    @Transactional
+    public QuizResult submitAnswers(String username, Map<Long, String> userAnswers) {
+        User user = userRepository.findByUsername(username);
 
-        int correct = 0;
-        List<Map<String, Object>> results = new ArrayList<>();
+        int finalScore = 0;
+        int totalQuestions = userAnswers.size();
+        List<Map<String, Object>> breakdownList = new ArrayList<>();
 
-        for (QuizQuestion q : questions) {
-            String submitted = answers.get(q.getId());
-            boolean isCorrect = q.getCorrectAnswer().name().equals(submitted);
-            if (isCorrect) correct++;
+        // 🛠️ FIX 1: Complete the grading logic by pulling correct answers from the database
+        for (Map.Entry<Long, String> entry : userAnswers.entrySet()) {
+            Long questionId = entry.getKey();
+            String submittedAnswerStr = entry.getValue(); // "SHAKESPEARE" or "SONGWRITER"
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("id", q.getId());
-            result.put("text", q.getText());
-            result.put("hint", q.getHint());
-            result.put("correctAnswer", q.getCorrectAnswer());
-            result.put("author", q.getAuthor());
-            result.put("yourAnswer", submitted);
-            result.put("correct", isCorrect);
-            results.add(result);
+            QuizQuestion question = questionRepository.findById(questionId)
+                    .orElseThrow(() -> new RuntimeException("Question not found with ID: " + questionId));
+
+            // Check correctness against the QuoteType Enum defined in your entity model
+            boolean isCorrect = question.getCorrectAnswer().toString().equalsIgnoreCase(submittedAnswerStr);
+            if (isCorrect) {
+                finalScore++;
+            }
+
+            // Create the breakdown object structure the React frontend is expecting
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("id", question.getId());
+            detail.put("text", question.getText());
+            detail.put("author", question.getAuthor());
+            detail.put("hint", question.getHint());
+            detail.put("yourAnswer", submittedAnswerStr);
+            detail.put("correctAnswer", question.getCorrectAnswer().toString());
+            detail.put("correct", isCorrect);
+            breakdownList.add(detail);
         }
 
-        // Save score if user is logged in
-        if (username != null) {
-            User user = userRepository.findByUsername(username);
-            if (user != null) {
-                QuizScore score = new QuizScore();
-                score.setUser(user);
-                score.setScore(correct);
-                score.setTotalQuestions(questions.size());
-                scoreRepository.save(score);
+        // 🛠️ FIX 2: Prevent multiple entries. Check if user already has an entry on the board
+        if (user != null) {
+            Optional<QuizScore> existingScoreOpt = scoreRepository.findByUserId(user.getId());
+
+            if (existingScoreOpt.isPresent()) {
+                QuizScore existingScore = existingScoreOpt.get();
+
+                // 💡 OPTION: Decide if you want to keep their highest score or overwrite with latest.
+                // Keeping highest score ensures leaderboard reflects personal bests:
+                if (finalScore > existingScore.getScore()) {
+                    existingScore.setScore(finalScore);
+                    existingScore.setTotalQuestions(totalQuestions);
+                    // Update the timestamp as well to match the new score attempt
+                    existingScore.setPlayedAt(java.time.LocalDateTime.now());
+                    scoreRepository.save(existingScore);
+                }
+            } else {
+                // First time playing! Create a fresh row for this account
+                QuizScore newScore = new QuizScore();
+                newScore.setUser(user);
+                newScore.setScore(finalScore);
+                newScore.setTotalQuestions(totalQuestions);
+                scoreRepository.save(newScore);
             }
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("score", correct);
-        response.put("total", questions.size());
-        response.put("results", results);
-        return response;
+        // 🛠️ FIX 3: Return your mapped QuizResult DTO containing the final calculated scores
+        return new QuizResult(finalScore, totalQuestions, breakdownList);
     }
 
     public List<Map<String, Object>> getLeaderboard() {
@@ -87,7 +107,7 @@ public class QuizService {
                     dto.put("username", s.getUser().getUsername());
                     dto.put("photo", s.getUser().getPhoto() != null ? s.getUser().getPhoto() : "");
                     dto.put("score", s.getScore());
-                    dto.put("total", s.getTotalQuestions());
+                    dto.put("total", s.getTotalQuestions()); // Matches QuizScore.getTotalQuestions()
                     dto.put("playedAt", s.getPlayedAt());
                     return dto;
                 })
@@ -102,7 +122,7 @@ public class QuizService {
                 .map(s -> {
                     Map<String, Object> dto = new HashMap<>();
                     dto.put("score", s.getScore());
-                    dto.put("total", s.getTotalQuestions());
+                    dto.put("total", s.getTotalQuestions()); // Matches QuizScore.getTotalQuestions()
                     dto.put("playedAt", s.getPlayedAt());
                     return dto;
                 })
