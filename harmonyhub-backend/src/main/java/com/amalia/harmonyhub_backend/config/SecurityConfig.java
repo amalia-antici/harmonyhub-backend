@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/quiz/questions").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/quiz/leaderboard").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/quiz/submit").permitAll()
+                        .requestMatchers("/api/quiz/leaderboard").permitAll()
+
 
 
                         // Authenticated modifications
@@ -74,7 +76,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/challenges/*/submit").authenticated()
                         .requestMatchers("/api/friends/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/quiz/history").authenticated()
-
+                        .requestMatchers("/api/quiz/submit/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
